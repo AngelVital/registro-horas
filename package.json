@@ -1,0 +1,16 @@
+{
+  "name": "bitacora-practicas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Registro de horas de prácticas con almacenamiento persistente en Vercel Blob.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npx --yes vercel dev"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.0"
+  }
+}

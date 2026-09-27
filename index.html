@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f4ef">
+  <title>Horas de prácticas</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="scripts.js" defer></script>
+</head>
+<body>
+  <div id="app-content" hidden inert>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg></span>
+          <span>Bitácora de prácticas</span>
+        </div>
+        <div class="top-actions">
+          <span class="period-tag">REGISTRO PERSONAL</span>
+          <span class="sync-status is-loading" id="sync-status" role="status" aria-live="polite">Conectando…</span>
+          <button class="button" id="share-button" title="Copiar enlace de acceso">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4m-6.8 9 6.8 4"/></svg>
+            Compartir
+          </button>
+          <button class="button" id="export-button" title="Descargar todos los registros en CSV">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M5 17v3h14v-3"/></svg>
+            Exportar CSV
+          </button>
+          <button class="button" id="logout-button" title="Cerrar sesión">Salir</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell">
+    <section class="heading-row">
+      <div>
+        <p class="eyebrow">Seguimiento de jornada</p>
+        <h1>Mis horas de prácticas</h1>
+        <p class="heading-note">Cada jornada cuenta. Lleva el registro de tu avance.</p>
+      </div>
+    </section>
+
+    <section class="stats" aria-label="Resumen de horas">
+      <div class="stat">
+        <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Acumuladas</div>
+        <div class="stat-value" id="total-hours">0 <small>h</small></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>Este mes</div>
+        <div class="stat-value" id="month-hours">0 <small>h</small></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z"/></svg>Meta</div>
+        <div class="stat-value" id="goal-progress">0 <small>/ 160 h</small></div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="panel calendar" aria-label="Calendario de prácticas">
+        <div class="calendar-head">
+          <div class="month-title" id="month-title"></div>
+          <div class="month-nav">
+            <button class="icon-button" id="previous-month" aria-label="Mes anterior" title="Mes anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+            <button class="today-button" id="today-button">Hoy</button>
+            <button class="icon-button" id="next-month" aria-label="Mes siguiente" title="Mes siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+          </div>
+        </div>
+        <div class="weekdays" aria-hidden="true">
+          <span class="weekday">Lun</span><span class="weekday">Mar</span><span class="weekday">Mié</span><span class="weekday">Jue</span><span class="weekday">Vie</span><span class="weekday">Sáb</span><span class="weekday">Dom</span>
+        </div>
+        <div class="days" id="calendar-days"></div>
+        <div class="calendar-foot"><span class="legend-dot"></span> Día con horas registradas</div>
+      </div>
+
+      <aside class="panel side-panel">
+        <div class="side-head">
+          <h2 class="selected-date" id="selected-date"></h2>
+          <p class="selected-meta" id="selected-meta"></p>
+        </div>
+        <div class="entries" id="entries-list"></div>
+        <form class="entry-form" id="entry-form">
+          <h3 class="form-title">Añadir jornada <span>HORARIO LOCAL</span></h3>
+          <div class="form-grid">
+            <div class="field"><label for="entry-date">Fecha</label><input id="entry-date" type="date" required></div>
+            <div class="field"><label for="start-time">Entrada</label><div class="time-control"><button class="time-step" type="button" data-target="start-time" data-time-step="-15" aria-label="Entrada, 15 minutos antes" title="15 minutos antes">−</button><input id="start-time" type="time" value="09:00" required><button class="time-step" type="button" data-target="start-time" data-time-step="15" aria-label="Entrada, 15 minutos después" title="15 minutos después">+</button></div></div>
+            <div class="field"><label for="end-time">Salida</label><div class="time-control"><button class="time-step" type="button" data-target="end-time" data-time-step="-15" aria-label="Salida, 15 minutos antes" title="15 minutos antes">−</button><input id="end-time" type="time" value="14:00" required><button class="time-step" type="button" data-target="end-time" data-time-step="15" aria-label="Salida, 15 minutos después" title="15 minutos después">+</button></div></div>
+            <div class="field full"><label for="entry-note">Actividad (opcional)</label><textarea id="entry-note" maxlength="180" placeholder="¿En qué trabajaste hoy?"></textarea></div>
+          </div>
+          <div class="form-bottom">
+            <span class="duration-preview" id="duration-preview">5 h totales</span>
+            <button class="button button-primary" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Guardar jornada</button>
+          </div>
+        </form>
+      </aside>
+    </section>
+    </main>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+  <section class="auth-screen" id="auth-screen" aria-labelledby="login-title">
+    <form class="auth-form" id="login-form">
+      <span class="brand-mark auth-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg></span>
+      <p class="eyebrow">Bitácora personal</p>
+      <h1 id="login-title">Iniciar sesión</h1>
+      <p class="auth-description">Accede a tu registro de prácticas.</p>
+      <div class="field">
+        <label for="login-username">Usuario</label>
+        <input id="login-username" name="username" type="text" value="angelo" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="login-password">Contraseña</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <p class="auth-error" id="auth-error" role="alert" hidden></p>
+      <button class="button button-primary auth-submit" id="login-submit" type="submit">Entrar</button>
+    </form>
+  </section>
+</body>
+</html>
