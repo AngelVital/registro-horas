@@ -2,10 +2,14 @@ const http = require('node:http');
 const fs = require('node:fs/promises');
 const crypto = require('node:crypto');
 const path = require('node:path');
+const vercelAuth = require('./lib/vercel-auth');
+const vercelStorage = require('./lib/vercel-storage');
 
 const ROOT = __dirname;
+const IS_VERCEL = process.env.VERCEL === '1';
 const DATA_DIR = path.join(ROOT, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'registros.json');
+const RECORD_PREFIX = 'practice-records/';
 const PORT = Number(process.env.PORT) || 3000;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -42,6 +46,11 @@ function enqueueRegistryTask(task) {
 }
 
 async function readRecords() {
+  if (IS_VERCEL) {
+    const blobs = await vercelStorage.listPrivate(RECORD_PREFIX);
+    const records = await Promise.all(blobs.map(blob => vercelStorage.getPrivateJson(blob.pathname)));
+    return records.filter(Boolean).sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+  }
   const contents = await fs.readFile(DATA_FILE, 'utf8');
   const records = JSON.parse(contents);
   if (!Array.isArray(records)) throw new Error('Registry must contain a JSON array');
@@ -49,6 +58,7 @@ async function readRecords() {
 }
 
 async function writeRecords(records) {
+  if (IS_VERCEL) throw new Error('Use per-record Blob writes on Vercel.');
   const temporaryFile = `${DATA_FILE}.${process.pid}.tmp`;
   await fs.writeFile(temporaryFile, `${JSON.stringify(records, null, 2)}\n`, 'utf8');
   await fs.rename(temporaryFile, DATA_FILE);
@@ -71,6 +81,7 @@ function parseCookies(request) {
 }
 
 function getSession(request) {
+  if (IS_VERCEL) return vercelAuth.getSession(request);
   const sessionId = parseCookies(request)[SESSION_COOKIE];
   const session = sessionId && sessions.get(sessionId);
   if (!session) return null;
@@ -90,8 +101,8 @@ function clearSessionCookie(request, response) {
   response.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${isSecureRequest(request) ? '; Secure' : ''}`);
 }
 
-function requireSession(request, response) {
-  if (getSession(request)) return true;
+async function requireSession(request, response) {
+  if (await getSession(request)) return true;
   sendJson(response, 401, { error: 'Inicia sesión para continuar.' });
   return false;
 }
@@ -138,6 +149,12 @@ async function handleLoginApi(request, response) {
   } catch {
     return sendJson(response, 400, { error: 'Credenciales no válidas.' });
   }
+  if (IS_VERCEL) {
+    const result = await vercelAuth.authenticate(request, credentials);
+    if (result.error) return sendJson(response, result.status, { error: result.error });
+    vercelAuth.setSessionCookie(response, result.sessionId, request);
+    return sendJson(response, 200, { username: result.username });
+  }
   const valid = credentials && typeof credentials.username === 'string' && typeof credentials.password === 'string'
     && safeEqual(credentials.username, username) && safeEqual(credentials.password, password);
   if (!valid) {
@@ -159,22 +176,27 @@ async function handleLoginApi(request, response) {
   return sendJson(response, 200, { username });
 }
 
-function handleSessionApi(request, response) {
+async function handleSessionApi(request, response) {
   if (request.method !== 'GET') {
     response.setHeader('Allow', 'GET');
     return sendJson(response, 405, { error: 'Método no permitido.' });
   }
-  const session = getSession(request);
+  const session = await getSession(request);
   if (!session) return sendJson(response, 401, { error: 'Inicia sesión para continuar.' });
   return sendJson(response, 200, { username: session.username });
 }
 
-function handleLogoutApi(request, response) {
+async function handleLogoutApi(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
     return sendJson(response, 405, { error: 'Método no permitido.' });
   }
-  const session = getSession(request);
+  if (IS_VERCEL) {
+    await vercelAuth.destroySession(request);
+    vercelAuth.clearSessionCookie(response, request);
+    return response.writeHead(204).end();
+  }
+  const session = await getSession(request);
   if (session) sessions.delete(session.sessionId);
   clearSessionCookie(request, response);
   return response.writeHead(204).end();
@@ -197,7 +219,7 @@ function isValidRecord(record) {
 }
 
 async function handleRecordsApi(request, response, url) {
-  if (!requireSession(request, response)) return;
+  if (!await requireSession(request, response)) return;
 
   if (request.method === 'GET') {
     const records = await enqueueRegistryTask(readRecords);
@@ -212,6 +234,10 @@ async function handleRecordsApi(request, response, url) {
       return sendJson(response, 400, { error: 'El registro enviado no es JSON válido.' });
     }
     if (!isValidRecord(record)) return sendJson(response, 400, { error: 'El registro enviado no es válido.' });
+    if (IS_VERCEL) {
+      await vercelStorage.putPrivateJson(`${RECORD_PREFIX}${record.id}.json`, { ...record, note: record.note || '' });
+      return response.writeHead(204).end();
+    }
     await enqueueRegistryTask(async () => {
       const records = await readRecords();
       const index = records.findIndex(item => item.id === record.id);
@@ -225,6 +251,10 @@ async function handleRecordsApi(request, response, url) {
   if (request.method === 'DELETE') {
     const id = url.searchParams.get('id');
     if (!id || id.length > 80) return sendJson(response, 400, { error: 'El identificador no es válido.' });
+    if (IS_VERCEL) {
+      await vercelStorage.deletePrivate([`${RECORD_PREFIX}${id}.json`]);
+      return response.writeHead(204).end();
+    }
     await enqueueRegistryTask(async () => {
       const records = await readRecords();
       await writeRecords(records.filter(record => record.id !== id));
@@ -247,8 +277,8 @@ async function handleRequest(request, response) {
   const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
   try {
     if (url.pathname === '/api/login') return await handleLoginApi(request, response);
-    if (url.pathname === '/api/session') return handleSessionApi(request, response);
-    if (url.pathname === '/api/logout') return handleLogoutApi(request, response);
+    if (url.pathname === '/api/session') return await handleSessionApi(request, response);
+    if (url.pathname === '/api/logout') return await handleLogoutApi(request, response);
     if (url.pathname === '/api/records') {
       return await handleRecordsApi(request, response, url);
     }
@@ -269,11 +299,13 @@ async function handleRequest(request, response) {
 }
 
 async function start() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  try {
-    await fs.writeFile(DATA_FILE, '[]\n', { encoding: 'utf8', flag: 'wx' });
-  } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
+  if (!IS_VERCEL) {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    try {
+      await fs.writeFile(DATA_FILE, '[]\n', { encoding: 'utf8', flag: 'wx' });
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+    }
   }
 
   const server = http.createServer(handleRequest);

@@ -1,13 +1,13 @@
 # Bitácora de prácticas
 
-App estática con funciones serverless de Vercel. Las jornadas y las sesiones se guardan como objetos privados en Vercel Blob; el archivo local `data/registros.json` se usa únicamente con el servidor de desarrollo independiente. El CSV es una exportación adicional.
+Servidor Node.js detectado como Function por Vercel. Las jornadas, las sesiones y los intentos de acceso se guardan como objetos privados en Vercel Blob; el archivo local `data/registros.json` solo se usa al ejecutar el servidor local con `npm start`. El CSV es una exportación adicional.
 
 ## Preparar Vercel
 
 1. Importa este repositorio en Vercel.
 2. En el proyecto, abre **Storage**, crea un almacén **Blob** privado y conéctalo al proyecto y a Production. Vercel configura la autenticación OIDC del SDK.
 3. En **Settings > Environment Variables**, define `APP_USERNAME` y `APP_PASSWORD` para Production. Usa una contraseña larga y única; no uses una contraseña de cuatro dígitos en un sitio público.
-4. Despliega el proyecto. Las funciones de `api/` usan Blob para guardar y leer los mismos datos desde todos los dispositivos.
+4. Despliega el proyecto. `server.js` sirve la interfaz y las rutas `/api/`; en Vercel, estas operaciones usan Blob para compartir los datos entre instancias y dispositivos.
 
 No configures `BLOB_READ_WRITE_TOKEN` manualmente si conectas el almacén al proyecto: el SDK usa OIDC administrado por Vercel. El almacén es privado; las funciones verifican la sesión antes de leerlo o modificarlo.
 
