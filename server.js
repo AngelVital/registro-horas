@@ -269,6 +269,7 @@ async function handleRecordsApi(request, response, url) {
 const publicFiles = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
+  ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/scripts.js', ['scripts.js', 'text/javascript; charset=utf-8']]
 ]);
